@@ -76,8 +76,6 @@ private:
 
 	QImage _lastImg;
 
-	QList<ApngFrame> _allFrames;
-
 	static void info_fn(png_structp png_ptr, png_infop info_ptr);
 	static void row_fn(png_structp png_ptr, png_bytep new_row, png_uint_32 row_num, int pass);
 	static void end_fn(png_structp png_ptr, png_infop info_ptr);

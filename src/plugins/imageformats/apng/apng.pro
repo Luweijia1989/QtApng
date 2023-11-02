@@ -1,14 +1,12 @@
 TARGET  = qapng
 
 HEADERS += \
-	apngimageplugin.h \
-	apngreader_p.h \
+        apngimageplugin.h \
 	apngimagehandler_p.h
 
 SOURCES += \
 	apngimageplugin.cpp \
-	apngimagehandler.cpp \
-	apngreader.cpp
+        apngimagehandler.cpp
 
 OTHER_FILES += \
 	qapng.json

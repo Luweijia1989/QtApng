@@ -4,6 +4,7 @@
 #include <QRect>
 #include <QThread>
 #include <QtEndian>
+#include <QPainter>
 
 ApngReader::ApngReader(QObject *parent) :
 	QObject{parent}
@@ -133,7 +134,7 @@ void ApngReader::info_fn(png_structp png_ptr, png_infop info_ptr)
 	png_set_strip_16(png_ptr);
 	png_set_gray_to_rgb(png_ptr);
 	png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
-	png_set_bgr(png_ptr);
+    png_set_bgr(png_ptr);
 	(void)png_set_interlace_handling(png_ptr);
 	png_read_update_info(png_ptr, info_ptr);
 
@@ -255,7 +256,7 @@ void ApngReader::frame_end_fn(png_structp png_ptr, png_uint_32 frame_num)
 
 	if (frame.dop == PNG_DISPOSE_OP_PREVIOUS)
 		image = temp;
-	else if (frame.dop == PNG_DISPOSE_OP_BACKGROUND) {
+    else if (frame.dop == PNG_DISPOSE_OP_BACKGROUND) {
 		for(auto y = 0u; y < frame.height; y++) {
 			for(auto x = 0u; x < frame.width; x++)
 				image.setPixelColor(static_cast<int>(x + frame.x),
@@ -285,60 +286,35 @@ bool ApngReader::readChunk(quint32 len)
 
 void ApngReader::copyOver()
 {
-	for(quint32 y = 0; y < _frame.height; y++) {
-		for(quint32 x = 0; x < _frame.width; x++) {
-			auto px = x*4;
-
-			QColor c;
-			c.setBlue(_frame.rows[y][px]);
-			c.setGreen(_frame.rows[y][px+1]);
-			c.setRed(_frame.rows[y][px+2]);
-			c.setAlpha(_frame.rows[y][px+3]);
-
-			_lastImg.setPixelColor(static_cast<int>(x + _frame.x),
-								   static_cast<int>(y + _frame.y),
-								   c);
-		}
-	}
+    if ((int)_frame.width == _lastImg.width() && (int)_frame.height == _lastImg.height()) {
+        memcpy(_lastImg.bits(), _frame.p, _frame.rowbytes * _frame.height);
+    } else {
+        int lineSize = _frame.width * 4;
+        QImage image(_frame.width, _frame.height, QImage::Format_RGBA8888);
+        for(quint32 y = 0; y < _frame.height; y++) {
+            memcpy(image.bits() + lineSize * y, _frame.rows[y], lineSize);
+        }
+        QPainter p(&_lastImg);
+        p.setCompositionMode(QPainter::CompositionMode_Source);
+        p.drawImage(QPoint(_frame.x, _frame.y), image);
+    }
 }
 
 void ApngReader::blendOver()
 {
-	for(quint32 y = 0; y < _frame.height; y++) {
-		for(quint32 x = 0; x < _frame.width; x++) {
-			auto px = x*4;
+    QImage image(_frame.width, _frame.height, QImage::Format_ARGB32);
+    if ((int)_frame.width == _lastImg.width() && (int)_frame.height == _lastImg.height()) {
+        memcpy(image.bits(), _frame.p, _frame.rowbytes * _frame.height);
+    } else {
+        auto lineSize = _frame.width * 4;
+        for(quint32 y = 0; y < _frame.height; y++) {
+            memcpy(image.bits() + lineSize * y, _frame.rows[y], lineSize);
+        }
+    }
 
-			QColor src;
-			src.setBlue(_frame.rows[y][px]);
-			src.setGreen(_frame.rows[y][px+1]);
-			src.setRed(_frame.rows[y][px+2]);
-			src.setAlpha(_frame.rows[y][px+3]);
-
-			if(src.alpha() == 0xFF) {
-				_lastImg.setPixelColor(static_cast<int>(x + _frame.x),
-									   static_cast<int>(y + _frame.y),
-									   src);
-			} else if(src.alpha() != 0x00) {
-				auto dst = _lastImg.pixelColor(static_cast<int>(x + _frame.x),
-											   static_cast<int>(y + _frame.y));
-
-				//do porter-duff blending
-				if(dst.alpha() != 0x00) {
-					auto u = src.alpha() * 0xFF;
-					auto v = (0xFF - src.alpha()) * dst.alpha();
-					auto al = u + v;
-					src.setBlue((src.blue() * u + dst.blue() * v) / al);
-					src.setGreen((src.green() * u + dst.green() * v) / al);
-					src.setRed((src.red() * u + dst.red() * v) / al);
-					src.setAlpha(al/255);
-				}
-
-				_lastImg.setPixelColor(static_cast<int>(x + _frame.x),
-									   static_cast<int>(y + _frame.y),
-									   src);
-			}
-		}
-	}
+    QPainter p(&_lastImg);
+    p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    p.drawImage(QPoint(_frame.x, _frame.y), image);
 }
 
 
