@@ -34,6 +34,7 @@ bool QApngHandler::canRead() const
                 return false;
         }
 
+        setFormat(m_hasAnimation ? "apng" : "png");
         return true;
     }
     return false;
